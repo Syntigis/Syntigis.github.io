@@ -874,8 +874,35 @@
             }
         }
 
-        // Search for relevant chunks
+        // Search for relevant chunks with better handling for vague queries
         function searchChunks(query, limit = 5) {
+            // Handle vague queries
+            const vagueQueries = ['tell me anything', 'what do you know', 'help me', 'what can you do', 'tell me something'];
+            const isVagueQuery = vagueQueries.some(vq => query.toLowerCase().includes(vq));
+            
+            if (isVagueQuery) {
+                // Return a sample of chunks if query is too vague
+                const chunks = db.exec(`
+                    SELECT c.id, c.content, c.embedding, s.name as source_name
+                    FROM chunks c
+                    JOIN sources s ON c.source_id = s.id
+                    ORDER BY RANDOM()
+                    LIMIT 3
+                `);
+                
+                if (!chunks.length || chunks[0].values.length === 0) {
+                    return []; // No data at all
+                }
+                
+                // Return sample chunks with low similarity to trigger helpful response
+                return chunks[0].values.map(row => ({
+                    id: row[0],
+                    content: row[1],
+                    embedding: row[2],
+                    source: row[3],
+                    similarity: 0.1 // Low score to indicate vague match
+                }));
+            }
             const queryEmbedding = generateEmbedding(query);
             
             // Get all chunks with embeddings
