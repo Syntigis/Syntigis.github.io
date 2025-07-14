@@ -694,7 +694,7 @@
             <h2>AI Assistant (SQLite Powered)</h2>
             <div class="chat-messages" id="chatMessages">
                 <div class="message bot-message">
-                    <strong>AI:</strong> Hello! I'm your SQLite-powered AI assistant. Upload documents or add knowledge, and I'll help answer your questions using advanced database queries for fast, accurate responses.
+                    <strong>AI:</strong> Hey there! 👋 I'm your AI assistant. Right now I'm like a student with an empty notebook - ready to learn but need you to teach me first! Upload some PDFs, manuals, or documents and I'll become an expert on those topics. What kind of stuff do you need help with?
                 </div>
             </div>
             <div class="chat-input-container">
@@ -876,8 +876,14 @@
 
         // Search for relevant chunks with better handling for vague queries
         function searchChunks(query, limit = 5) {
+            // First check if we have any data at all
+            const totalChunks = db.exec("SELECT COUNT(*) FROM chunks")[0];
+            if (!totalChunks || totalChunks.values[0][0] === 0) {
+                return []; // No data in database
+            }
+            
             // Handle vague queries
-            const vagueQueries = ['tell me anything', 'what do you know', 'help me', 'what can you do', 'tell me something'];
+            const vagueQueries = ['tell me anything', 'what do you know', 'help me', 'what can you do', 'tell me something', 'hello', 'hi'];
             const isVagueQuery = vagueQueries.some(vq => query.toLowerCase().includes(vq));
             
             if (isVagueQuery) {
@@ -903,6 +909,73 @@
                     similarity: 0.1 // Low score to indicate vague match
                 }));
             }
+            
+            // Expand query with common variations
+            const queryLower = query.toLowerCase();
+            const expandedTerms = [];
+            
+            // Add original terms
+            const originalTerms = queryLower.split(/\s+/);
+            expandedTerms.push(...originalTerms);
+            
+            // Add common synonyms/variations
+            const synonyms = {
+                'login': ['signin', 'sign-in', 'logon', 'log-on', 'authenticate', 'authentication'],
+                'error': ['problem', 'issue', 'fault', 'failure', 'exception', 'wrong'],
+                'password': ['passcode', 'pin', 'credential', 'pwd'],
+                'install': ['setup', 'installation', 'configure', 'deploy'],
+                'start': ['begin', 'launch', 'run', 'open', 'startup', 'boot'],
+                'stop': ['end', 'close', 'shutdown', 'exit', 'quit', 'terminate'],
+                'fix': ['solve', 'resolve', 'repair', 'troubleshoot', 'correct'],
+                'screen': ['display', 'monitor', 'window', 'interface'],
+                'frozen': ['hang', 'hung', 'freeze', 'stuck', 'unresponsive', 'not responding'],
+                'crash': ['crashes', 'crashed', 'crashing', 'fail', 'failed', 'failure']
+            };
+            
+            // Add synonyms for each term
+            originalTerms.forEach(term => {
+                if (synonyms[term]) {
+                    expandedTerms.push(...synonyms[term]);
+                }
+                // Also check if term is a synonym and add the main word
+                for (const [main, syns] of Object.entries(synonyms)) {
+                    if (syns.includes(term)) {
+                        expandedTerms.push(main);
+                    }
+                }
+            });
+            
+            // Remove duplicates
+            const uniqueTerms = [...new Set(expandedTerms)];
+            const expandedQuery = uniqueTerms.join(' ');
+            
+            // Generate embedding with expanded terms
+            const queryEmbedding = generateEmbedding(expandedQuery);
+            
+            // Get all chunks with embeddings
+            const chunks = db.exec(`
+                SELECT c.id, c.content, c.embedding, s.name as source_name
+                FROM chunks c
+                JOIN sources s ON c.source_id = s.id
+            `);
+            
+            if (!chunks.length) return [];
+            
+            // Calculate similarities
+            const results = chunks[0].values.map(row => ({
+                id: row[0],
+                content: row[1],
+                embedding: row[2],
+                source: row[3],
+                similarity: calculateSimilarity(queryEmbedding, row[2])
+            }));
+            
+            // Sort by similarity and return top results
+            return results
+                .sort((a, b) => b.similarity - a.similarity)
+                .slice(0, limit)
+                .filter(r => r.similarity > 0);
+        }
             const queryEmbedding = generateEmbedding(query);
             
             // Get all chunks with embeddings
