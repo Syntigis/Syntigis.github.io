@@ -1159,151 +1159,126 @@
         }
 
         // Enhanced search with spell correction
-        function searchChunks(query, limit = 5) {
-            // First check if we have any data at all
-            const totalChunks = db.exec("SELECT COUNT(*) FROM chunks")[0];
-            if (!totalChunks || totalChunks.values[0][0] === 0) {
-                return []; // No data in database
-            }
-            
-            // Spell-check the query
-            const originalWords = query.toLowerCase().split(/\s+/);
-            const correctedWords = originalWords.map(word => correctSpelling(word));
-            const correctedQuery = correctedWords.join(' ');
-            
-            // Check if we made corrections
-            const hadTypos = originalWords.some((word, i) => word !== correctedWords[i]);
-            
-            // Handle vague queries
-            const vagueQueries = ['tell me anything', 'what do you know', 'help me', 'what can you do', 'tell me something', 'hello', 'hi'];
-            const isVagueQuery = vagueQueries.some(vq => correctedQuery.includes(vq));
-            
-            if (isVagueQuery) {
-                // Return a sample of chunks if query is too vague
-                const chunks = db.exec(`
-                    SELECT c.id, c.content, c.embedding, s.name as source_name
-                    FROM chunks c
-                    JOIN sources s ON c.source_id = s.id
-                    ORDER BY RANDOM()
-                    LIMIT 3
-                `);
-                
-                if (!chunks.length || chunks[0].values.length === 0) {
-                    return []; // No data at all
-                }
-                
-                // Return sample chunks with low similarity to trigger helpful response
-                return chunks[0].values.map(row => ({
-                    id: row[0],
-                    content: row[1],
-                    embedding: row[2],
-                    source: row[3],
-                    similarity: 0.1,
-                    hadTypos: hadTypos,
-                    correctedQuery: correctedQuery
-                }));
-            }
-            
-            // Expand query with common variations and similar words
-            const expandedTerms = [];
-            
-            // Add original and corrected terms
-            expandedTerms.push(...originalWords);
-            expandedTerms.push(...correctedWords);
-            
-            // Add similar words for each term
-            correctedWords.forEach(word => {
-                const similar = findSimilarWords(word, 1); // Find words with edit distance of 1
-                expandedTerms.push(...similar);
-            });
-            
-            // Add common synonyms/variations
-            const synonyms = {
-                'login': ['signin', 'sign-in', 'logon', 'log-on', 'authenticate', 'authentication'],
-                'error': ['problem', 'issue', 'fault', 'failure', 'exception', 'wrong', 'bug'],
-                'password': ['passcode', 'pin', 'credential', 'pwd', 'pass'],
-                'install': ['setup', 'installation', 'configure', 'deploy'],
-                'start': ['begin', 'launch', 'run', 'open', 'startup', 'boot', 'initialize'],
-                'stop': ['end', 'close', 'shutdown', 'exit', 'quit', 'terminate'],
-                'fix': ['solve', 'resolve', 'repair', 'troubleshoot', 'correct', 'debug'],
-                'screen': ['display', 'monitor', 'window', 'interface', 'page', 'view'],
-                'frozen': ['hang', 'hung', 'freeze', 'stuck', 'unresponsive', 'not responding'],
-                'crash': ['crashes', 'crashed', 'crashing', 'fail', 'failed', 'failure']
-            };
-            
-            // Add synonyms for each term
-            correctedWords.forEach(term => {
-                if (synonyms[term]) {
-                    expandedTerms.push(...synonyms[term]);
-                }
-                // Also check if term is a synonym and add the main word
-                for (const [main, syns] of Object.entries(synonyms)) {
-                    if (syns.includes(term)) {
-                        expandedTerms.push(main);
-                    }
-                }
-            });
-            
-            // Remove duplicates
-            const uniqueTerms = [...new Set(expandedTerms)];
-            const expandedQuery = uniqueTerms.join(' ');
-            
-            // Generate embedding with expanded terms
-            const queryEmbedding = generateEmbedding(expandedQuery);
-            
-            // Get all chunks with embeddings
-            const chunks = db.exec(`
-                SELECT c.id, c.content, c.embedding, s.name as source_name
-                FROM chunks c
-                JOIN sources s ON c.source_id = s.id
-            `);
-            
-            if (!chunks.length) return [];
-            
-            // Calculate similarities
-            const results = chunks[0].values.map(row => ({
-                id: row[0],
-                content: row[1],
-                embedding: row[2],
-                source: row[3],
-                similarity: calculateSimilarity(queryEmbedding, row[2]),
-                hadTypos: hadTypos,
-                correctedQuery: correctedQuery
-            }));
-            
-            // Sort by similarity and return top results
-            return results
-                .sort((a, b) => b.similarity - a.similarity)
-                .slice(0, limit)
-                .filter(r => r.similarity > 0);
-        }
-            const queryEmbedding = generateEmbedding(query);
-            
-            // Get all chunks with embeddings
-            const chunks = db.exec(`
-                SELECT c.id, c.content, c.embedding, s.name as source_name
-                FROM chunks c
-                JOIN sources s ON c.source_id = s.id
-            `);
-            
-            if (!chunks.length) return [];
-            
-            // Calculate similarities
-            const results = chunks[0].values.map(row => ({
-                id: row[0],
-                content: row[1],
-                embedding: row[2],
-                source: row[3],
-                similarity: calculateSimilarity(queryEmbedding, row[2])
-            }));
-            
-            // Sort by similarity and return top results
-            return results
-                .sort((a, b) => b.similarity - a.similarity)
-                .slice(0, limit)
-                .filter(r => r.similarity > 0);
+        // Enhanced search with spell correction
+function searchChunks(query, limit = 5) {
+    // First check if we have any data at all
+    const totalChunks = db.exec("SELECT COUNT(*) FROM chunks")[0];
+    if (!totalChunks || totalChunks.values[0][0] === 0) {
+        return []; // No data in database
+    }
+
+    // Spell-check the query
+    const originalWords = query.toLowerCase().split(/\s+/);
+    const correctedWords = originalWords.map(word => correctSpelling(word));
+    const correctedQuery = correctedWords.join(' ');
+
+    // Check if we made corrections
+    const hadTypos = originalWords.some((word, i) => word !== correctedWords[i]);
+
+    // Handle vague queries
+    const vagueQueries = [
+        'tell me anything', 'what do you know', 'help me',
+        'what can you do', 'tell me something', 'hello', 'hi'
+    ];
+    const isVagueQuery = vagueQueries.some(vq => correctedQuery.includes(vq));
+
+    if (isVagueQuery) {
+        // Return a sample of chunks if query is too vague
+        const chunks = db.exec(`
+            SELECT c.id, c.content, c.embedding, s.name as source_name
+            FROM chunks c
+            JOIN sources s ON c.source_id = s.id
+            ORDER BY RANDOM()
+            LIMIT 3
+        `);
+
+        if (!chunks.length || chunks[0].values.length === 0) {
+            return []; // No data at all
         }
 
+        // Return sample chunks with low similarity to trigger helpful response
+        return chunks[0].values.map(row => ({
+            id: row[0],
+            content: row[1],
+            embedding: row[2],
+            source: row[3],
+            similarity: 0.1,
+            hadTypos: hadTypos,
+            correctedQuery: correctedQuery
+        }));
+    }
+
+    // Expand query with common variations and similar words
+    const expandedTerms = [];
+
+    // Add original and corrected terms
+    expandedTerms.push(...originalWords);
+    expandedTerms.push(...correctedWords);
+
+    // Add similar words for each term
+    correctedWords.forEach(word => {
+        const similar = findSimilarWords(word, 1);
+        expandedTerms.push(...similar);
+    });
+
+    // Add common synonyms/variations
+    const synonyms = {
+        'login': ['signin', 'sign-in', 'logon', 'log-on', 'authenticate', 'authentication'],
+        'error': ['problem', 'issue', 'fault', 'failure', 'exception', 'wrong', 'bug'],
+        'password': ['passcode', 'pin', 'credential', 'pwd', 'pass'],
+        'install': ['setup', 'installation', 'configure', 'deploy'],
+        'start': ['begin', 'launch', 'run', 'open', 'startup', 'boot', 'initialize'],
+        'stop': ['end', 'close', 'shutdown', 'exit', 'quit', 'terminate'],
+        'fix': ['solve', 'resolve', 'repair', 'troubleshoot', 'correct', 'debug'],
+        'screen': ['display', 'monitor', 'window', 'interface', 'page', 'view'],
+        'frozen': ['hang', 'hung', 'freeze', 'stuck', 'unresponsive', 'not responding'],
+        'crash': ['crashes', 'crashed', 'crashing', 'fail', 'failed', 'failure']
+    };
+
+    correctedWords.forEach(term => {
+        if (synonyms[term]) {
+            expandedTerms.push(...synonyms[term]);
+        }
+        for (const [main, syns] of Object.entries(synonyms)) {
+            if (syns.includes(term)) {
+                expandedTerms.push(main);
+            }
+        }
+    });
+
+    // Remove duplicates
+    const uniqueTerms = [...new Set(expandedTerms)];
+    const expandedQuery = uniqueTerms.join(' ');
+
+    // Generate embedding with expanded terms
+    const queryEmbedding = generateEmbedding(expandedQuery);
+
+    // Get all chunks with embeddings
+    const chunks = db.exec(`
+        SELECT c.id, c.content, c.embedding, s.name as source_name
+        FROM chunks c
+        JOIN sources s ON c.source_id = s.id
+    `);
+
+    if (!chunks.length) return [];
+
+    // Calculate similarities
+    const results = chunks[0].values.map(row => ({
+        id: row[0],
+        content: row[1],
+        embedding: row[2],
+        source: row[3],
+        similarity: calculateSimilarity(queryEmbedding, row[2]),
+        hadTypos: hadTypos,
+        correctedQuery: correctedQuery
+    }));
+
+    // Sort by similarity and return top results
+    return results
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit)
+        .filter(r => r.similarity > 0);
+}
         // Generate response based on context
         function generateResponse(query, chunks) {
             if (chunks.length === 0) {
