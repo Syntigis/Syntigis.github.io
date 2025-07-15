@@ -1,0 +1,1891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f0c29">
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkFJIEFzc2lzdGFudCIsCiAgInNob3J0X25hbWUiOiAiQUkgQ2hhdCIsCiAgImRlc2NyaXB0aW9uIjogIllvdXIgcGVyc29uYWwgQUkgYXNzaXN0YW50IHdpdGggU1FMaXRlIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiMwZjBjMjkiLAogICJ0aGVtZV9jb2xvciI6ICIjMGYwYzI5IiwKICAib3JpZW50YXRpb24iOiAicG9ydHJhaXQiCn0=">
+    <title>AI Assistant with SQLite Backend</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-screen h2 {
+            margin-bottom: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 20px;
+            height: 85vh;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .container.show {
+            opacity: 1;
+        }
+
+        .sidebar {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .main-chat {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+            font-size: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        h3 {
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .knowledge-section {
+            margin-bottom: 25px;
+        }
+
+        .input-field, .select-input {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus, .select-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .select-input option {
+            background: #302b63;
+            color: #fff;
+        }
+
+        textarea.input-field {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+        }
+
+        .message img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            margin: 10px 0;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .message .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .message .icon {
+            width: 24px;
+            height: 24px;
+            vertical-align: middle;
+            margin: 0 5px;
+        }
+        
+        .diagram {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .user-message {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin-left: 50px;
+            text-align: right;
+        }
+
+        .bot-message {
+            background: rgba(255, 255, 255, 0.1);
+            margin-right: 50px;
+        }
+
+        .chat-input-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            color: #fff;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .send-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 15px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .stats {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
+        .stat-item {
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .token-display {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .file-upload input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-upload-label {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            border: none;
+            border-radius: 10px;
+            color: #333;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        .file-upload-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(168, 237, 234, 0.4);
+        }
+
+        .knowledge-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .knowledge-item-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-right: 10px;
+        }
+
+        .knowledge-item-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .knowledge-item-type {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+
+        .knowledge-item-size {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .delete-btn {
+            background: rgba(239, 68, 68, 0.3);
+            border: none;
+            color: #ef4444;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .delete-btn:hover {
+            background: rgba(239, 68, 68, 0.5);
+        }
+
+        .source-reference {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-top: 5px;
+            font-style: italic;
+        }
+
+        .processing-indicator {
+            display: none;
+            align-items: center;
+            padding: 10px;
+            background: rgba(59, 130, 246, 0.2);
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .processing-indicator.show {
+            display: flex;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .db-status {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #34d399;
+            border-radius: 50%;
+            margin-left: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        ::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .alert {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            font-size: 14px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .alert-success {
+            background: rgba(52, 211, 153, 0.2);
+            border: 1px solid rgba(52, 211, 153, 0.5);
+            color: #34d399;
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: #ef4444;
+        }
+
+        .alert-info {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            color: #3b82f6;
+        }
+
+        /* Mobile styles */
+        .mobile-menu-btn {
+            display: none;
+        }
+        
+        .close-sidebar {
+            display: none;
+        }
+        
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                height: 100vh;
+                gap: 0;
+            }
+            
+            .sidebar {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 85%;
+                height: 100%;
+                z-index: 1000;
+                border-radius: 0;
+                box-shadow: 5px 0 20px rgba(0, 0, 0, 0.3);
+                padding-top: 60px;
+            }
+            
+            .sidebar.show {
+                display: block !important;
+            }
+            
+            .sidebar-overlay.show {
+                display: block !important;
+            }
+            
+            .main-chat {
+                height: 100vh;
+                border-radius: 0;
+                padding: 15px;
+                padding-top: 70px;
+            }
+            
+            .mobile-menu-btn {
+                display: flex !important;
+                position: fixed;
+                top: 15px;
+                left: 15px;
+                z-index: 1001;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                border-radius: 50%;
+                width: 50px;
+                height: 50px;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            }
+            
+            .mobile-menu-btn svg {
+                width: 24px;
+                height: 24px;
+                fill: white;
+            }
+            
+            .close-sidebar {
+                display: block !important;
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                width: 40px;
+                height: 40px;
+                background: #ef4444;
+                color: white;
+                border: none;
+                border-radius: 50%;
+                font-size: 20px;
+                font-weight: bold;
+                cursor: pointer;
+                z-index: 1002;
+                padding: 0;
+                margin: 0;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            }
+            
+            .close-sidebar:hover {
+                background: #dc2626;
+                transform: scale(1.1);
+            }
+            
+            .chat-messages {
+                margin-bottom: 15px;
+                padding: 15px;
+            }
+            
+            .message {
+                padding: 12px;
+                font-size: 14px;
+            }
+            
+            .user-message {
+                margin-left: 20px;
+            }
+            
+            .bot-message {
+                margin-right: 20px;
+            }
+        }
+        
+        /* PWA Install Button */
+        .install-btn {
+            display: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            width: 100%;
+            font-weight: 600;
+        }
+        
+        .install-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+</head>
+<body>
+    <div class="loading-screen" id="loadingScreen">
+        <h2>Initializing SQLite Database...</h2>
+        <div class="spinner"></div>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+    
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24">
+            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+        </svg>
+    </button>
+
+    <div class="container" id="mainContainer">
+        <div class="sidebar" id="sidebar">
+            <button class="close-sidebar" onclick="toggleSidebar()">✕</button>
+            <button class="btn install-btn" id="installBtn" onclick="installApp()">📱 Install App</button>
+            <h2>AI Knowledge Base <span class="db-status" title="SQLite Connected"></span></h2>
+            
+            <div class="knowledge-section">
+                <h3>Add Knowledge</h3>
+                <input type="text" class="input-field" id="topicInput" placeholder="Topic/Category (e.g., Software Manual, FAQ)">
+                <textarea class="input-field" id="contentInput" placeholder="Enter knowledge content, documentation, or information..."></textarea>
+                <button class="btn" onclick="addKnowledge()">Add to Knowledge Base</button>
+                
+                <div class="file-upload">
+                    <input type="file" id="fileUpload" accept=".pdf,.txt,.json,.csv,.md,.jpg,.jpeg,.png,.gif,.webp" onchange="handleFileUpload(event)" multiple>
+                    <label for="fileUpload" class="file-upload-label">📄 Upload Files (PDF, TXT, Images)</label>
+                </div>
+                
+                <div class="processing-indicator" id="processingIndicator">
+                    <div class="spinner"></div>
+                    <span>Processing file...</span>
+                </div>
+            </div>
+            
+            <div class="knowledge-section">
+                <h3>Knowledge Sources</h3>
+                <div id="knowledgeList"></div>
+            </div>
+            
+            <div class="knowledge-section">
+                <h3>Settings</h3>
+                <label style="font-size: 14px; opacity: 0.9;">Response Mode:</label>
+                <select class="select-input" id="modeSelect" onchange="changeMode()">
+                    <option value="comprehensive">Comprehensive (Like AI Assistant)</option>
+                    <option value="concise">Concise (Short Answers)</option>
+                    <option value="technical">Technical (Detailed)</option>
+                    <option value="simple">Simple (ELI5)</option>
+                </select>
+                
+                <label style="font-size: 14px; opacity: 0.9; margin-top: 10px; display: block;">Search Results: <span id="contextValue">5</span></label>
+                <input type="range" min="1" max="10" step="1" value="5" style="width: 100%; margin: 10px 0;" onchange="updateContextWindow(this.value)">
+            </div>
+            
+            <div class="knowledge-section">
+                <h3>Database Management</h3>
+                <button class="btn btn-success" onclick="saveToFile()">💾 Save Database to File</button>
+                <button class="btn btn-success" onclick="loadFromFile()">📂 Load Database from File</button>
+                <button class="btn btn-success" onclick="exportDatabase()">Export SQLite DB</button>
+                <button class="btn btn-secondary" onclick="discoverContent()">🔍 Discover Content</button>
+                <button class="btn btn-secondary" onclick="showCommonTopics()">📚 Show Common Topics</button>
+                <button class="btn" onclick="optimizeDatabase()">Optimize Database</button>
+                <button class="btn btn-warning" onclick="clearDatabase()">Clear Database</button>
+            </div>
+            
+            <div class="stats">
+                <h3>Database Statistics</h3>
+                <div class="stat-item">
+                    <span>Knowledge Sources:</span>
+                    <span class="token-display" id="knowledgeSources">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Total Chunks:</span>
+                    <span class="token-display" id="totalChunks">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Database Size:</span>
+                    <span class="token-display" id="dbSize">0 KB</span>
+                </div>
+                <div class="stat-item">
+                    <span>Total Conversations:</span>
+                    <span class="token-display" id="totalConversations">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Response Time:</span>
+                    <span class="token-display" id="responseTime">0ms</span>
+                </div>
+            </div>
+            
+            <div id="alertContainer"></div>
+        </div>
+        
+        <div class="main-chat">
+            <h2>AI Assistant (SQLite Powered)</h2>
+            <div class="chat-messages" id="chatMessages">
+                <div class="message bot-message">
+                    <strong>AI:</strong> Hey there! 👋 I'm your AI assistant. Right now I'm like a student with an empty notebook - ready to learn but need you to teach me first! Upload some PDFs, manuals, or documents and I'll become an expert on those topics. What kind of stuff do you need help with?
+                </div>
+            </div>
+            <div class="chat-input-container">
+                <input type="text" class="chat-input" id="chatInput" placeholder="Ask me anything..." onkeypress="handleKeyPress(event)">
+                <button class="send-btn" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set up PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+
+        let SQL;
+        let db;
+        let settings = {
+            responseMode: 'comprehensive',
+            contextWindow: 5
+        };
+
+        // Initialize SQLite with better mobile support
+        async function initDatabase() {
+            try {
+                console.log('Starting database initialization...');
+                
+                // Add timeout for mobile devices
+                const timeout = setTimeout(() => {
+                    console.error('Database initialization timeout');
+                    document.getElementById('loadingScreen').innerHTML = `
+                        <h2>⚠️ Loading Issue Detected</h2>
+                        <p style="margin: 20px; text-align: center;">
+                            SQLite is having trouble loading on your device.<br><br>
+                            <button class="btn" onclick="skipDatabase()" style="width: 200px;">Continue Without Database</button><br><br>
+                            <small>Or try refreshing the page</small>
+                        </p>
+                    `;
+                }, 10000); // 10 second timeout
+                
+                const sqlPromise = initSqlJs({
+                    locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+                });
+                
+                SQL = await sqlPromise;
+                clearTimeout(timeout);
+                console.log('SQL.js loaded successfully');
+                
+                // Create new database
+                db = new SQL.Database();
+                console.log('Database created');
+                
+                // Create tables
+                db.run(`
+                    CREATE TABLE IF NOT EXISTS sources (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT UNIQUE NOT NULL,
+                        type TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+                    
+                    CREATE TABLE IF NOT EXISTS chunks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        source_id INTEGER NOT NULL,
+                        content TEXT NOT NULL,
+                        chunk_index INTEGER NOT NULL,
+                        embedding TEXT,
+                        FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+                    );
+                    
+                    CREATE TABLE IF NOT EXISTS conversations (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_input TEXT NOT NULL,
+                        bot_response TEXT NOT NULL,
+                        sources TEXT,
+                        response_time INTEGER,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+                    
+                    CREATE TABLE IF NOT EXISTS images (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT UNIQUE NOT NULL,
+                        data TEXT NOT NULL,
+                        type TEXT NOT NULL,
+                        keywords TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+                    
+                    CREATE INDEX IF NOT EXISTS idx_chunks_content ON chunks(content);
+                    CREATE INDEX IF NOT EXISTS idx_chunks_source ON chunks(source_id);
+                    CREATE INDEX IF NOT EXISTS idx_images_keywords ON images(keywords);
+                `);
+                
+                console.log('Tables created');
+                
+                // Try to load from localStorage
+                try {
+                    const savedDb = localStorage.getItem('aiAssistantDb');
+                    if (savedDb) {
+                        const buff = Uint8Array.from(atob(savedDb), c => c.charCodeAt(0));
+                        db = new SQL.Database(buff);
+                        console.log('Loaded saved database');
+                    }
+                } catch (e) {
+                    console.warn('Could not load saved database:', e);
+                }
+                
+                // Initialize personality
+                initializePersonality();
+                
+                // Hide loading screen and show main container
+                document.getElementById('loadingScreen').style.display = 'none';
+                document.getElementById('mainContainer').classList.add('show');
+                
+                updateStats();
+                updateKnowledgeList();
+                
+                console.log('Database initialization complete');
+                
+            } catch (error) {
+                console.error('Error initializing database:', error);
+                
+                // Show error message with option to continue
+                document.getElementById('loadingScreen').innerHTML = `
+                    <h2>⚠️ Database Loading Error</h2>
+                    <p style="margin: 20px; text-align: center;">
+                        ${error.message || 'Failed to load SQLite'}<br><br>
+                        <button class="btn" onclick="skipDatabase()" style="width: 200px;">Continue Anyway</button><br><br>
+                        <button class="btn btn-secondary" onclick="location.reload()" style="width: 200px;">Try Again</button>
+                    </p>
+                `;
+            }
+        }
+
+        // Fallback for when SQLite won't load
+        function skipDatabase() {
+            console.log('Skipping database, using memory storage');
+            
+            // Create a simple in-memory storage fallback
+            window.memoryStorage = {
+                sources: [],
+                chunks: [],
+                conversations: []
+            };
+            
+            // Override db functions with memory-based alternatives
+            db = {
+                run: function() { console.log('Memory mode: run skipped'); },
+                exec: function(query) {
+                    console.log('Memory mode query:', query);
+                    
+                    // Handle basic queries
+                    if (query.includes('COUNT(*) FROM sources')) {
+                        return [{ values: [[window.memoryStorage.sources.length]] }];
+                    }
+                    if (query.includes('COUNT(*) FROM chunks')) {
+                        return [{ values: [[window.memoryStorage.chunks.length]] }];
+                    }
+                    if (query.includes('COUNT(*) FROM conversations')) {
+                        return [{ values: [[window.memoryStorage.conversations.length]] }];
+                    }
+                    if (query.includes('SELECT name, type')) {
+                        return [{ values: window.memoryStorage.sources.map(s => [s.name, s.type, s.created_at]) }];
+                    }
+                    
+                    return [];
+                },
+                prepare: function() {
+                    return {
+                        run: function() { console.log('Memory mode: prepared statement run'); },
+                        free: function() { }
+                    };
+                },
+                export: function() {
+                    return new Uint8Array([]);
+                }
+            };
+            
+            // Continue with initialization
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('mainContainer').classList.add('show');
+            
+            // Show warning
+            showAlert('Running in limited mode without database. Some features may not work.', 'info');
+            
+            updateStats();
+            updateKnowledgeList();
+        }
+
+        // Save database to localStorage
+        function saveDatabase() {
+            try {
+                const data = db.export();
+                const base64 = btoa(String.fromCharCode.apply(null, new Uint8Array(data)));
+                
+                // Try multiple storage methods
+                try {
+                    localStorage.setItem('aiAssistantDb', base64);
+                } catch (e) {
+                    console.warn('localStorage failed, trying sessionStorage');
+                    sessionStorage.setItem('aiAssistantDb', base64);
+                }
+                
+                // Also try IndexedDB for better persistence
+                if ('indexedDB' in window) {
+                    const request = indexedDB.open('AIAssistantDB', 1);
+                    request.onsuccess = function(event) {
+                        const idb = event.target.result;
+                        const transaction = idb.transaction(['database'], 'readwrite');
+                        const store = transaction.objectStore('database');
+                        store.put({ id: 1, data: base64 });
+                    };
+                    request.onupgradeneeded = function(event) {
+                        const idb = event.target.result;
+                        if (!idb.objectStoreNames.contains('database')) {
+                            idb.createObjectStore('database', { keyPath: 'id' });
+                        }
+                    };
+                }
+            } catch (error) {
+                console.error('Error saving database:', error);
+            }
+        }
+
+        // Chunk text for storage
+        function chunkText(text, chunkSize = 500) {
+            const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+            const chunks = [];
+            let currentChunk = '';
+            
+            for (const sentence of sentences) {
+                if ((currentChunk + sentence).length > chunkSize && currentChunk) {
+                    chunks.push(currentChunk.trim());
+                    currentChunk = sentence;
+                } else {
+                    currentChunk += ' ' + sentence;
+                }
+            }
+            
+            if (currentChunk.trim()) {
+                chunks.push(currentChunk.trim());
+            }
+            
+            return chunks;
+        }
+
+        // Generate simple embedding (word frequency)
+        function generateEmbedding(text) {
+            const words = text.toLowerCase().split(/\s+/)
+                .map(w => w.replace(/[^a-z0-9]/g, ''))
+                .filter(w => w.length > 2);
+            
+            const embedding = {};
+            words.forEach(word => {
+                embedding[word] = (embedding[word] || 0) + 1;
+            });
+            
+            return JSON.stringify(embedding);
+        }
+
+        // Calculate similarity between embeddings
+        function calculateSimilarity(embedding1, embedding2) {
+            const e1 = JSON.parse(embedding1);
+            const e2 = JSON.parse(embedding2);
+            
+            let score = 0;
+            let totalWords = 0;
+            
+            for (const word in e1) {
+                if (e2[word]) {
+                    score += Math.min(e1[word], e2[word]);
+                    totalWords++;
+                }
+            }
+            
+            const totalUnique = new Set([...Object.keys(e1), ...Object.keys(e2)]).size;
+            return totalUnique > 0 ? score / totalUnique : 0;
+        }
+
+        // Add knowledge to database with proper error handling
+        function addKnowledgeToDb(name, content, type = 'manual') {
+            try {
+                // Check if we're in memory mode
+                if (window.memoryStorage) {
+                    return addKnowledgeToDbMemory(name, content, type);
+                }
+                
+                // Insert source
+                const stmt = db.prepare("INSERT OR IGNORE INTO sources (name, type) VALUES (?, ?)");
+                stmt.run([name, type]);
+                stmt.free();
+                
+                // Get source ID
+                const result = db.exec("SELECT id FROM sources WHERE name = ?", [name]);
+                if (!result.length || !result[0].values.length) {
+                    throw new Error('Failed to get source ID');
+                }
+                const sourceId = result[0].values[0][0];
+                
+                // Chunk and insert content
+                const chunks = chunkText(content);
+                const insertChunk = db.prepare("INSERT INTO chunks (source_id, content, chunk_index, embedding) VALUES (?, ?, ?, ?)");
+                
+                chunks.forEach((chunk, index) => {
+                    const embedding = generateEmbedding(chunk);
+                    insertChunk.run([sourceId, chunk, index, embedding]);
+                });
+                
+                insertChunk.free();
+                saveDatabase();
+                
+                return chunks.length;
+            } catch (error) {
+                console.error('Error adding knowledge:', error);
+                throw error;
+            }
+        }
+        
+        // Memory mode version of addKnowledgeToDb
+        function addKnowledgeToDbMemory(name, content, type) {
+            const chunks = chunkText(content, name);
+            
+            // Add source
+            window.memoryStorage.sources.push({
+                name: name,
+                type: type,
+                created_at: new Date().toISOString()
+            });
+            
+            // Add chunks
+            chunks.forEach((chunkContent, index) => {
+                window.memoryStorage.chunks.push({
+                    id: window.memoryStorage.chunks.length + 1,
+                    source: name,
+                    content: chunkContent,
+                    chunk_index: index,
+                    embedding: generateEmbedding(chunkContent)
+                });
+            });
+            
+            return chunks.length;
+        }
+
+        // Simple spell correction for common typos
+        function correctSpelling(word) {
+            const commonMisspellings = {
+                // Common typos
+                'teh': 'the',
+                'adn': 'and',
+                'waht': 'what',
+                'wnat': 'want',
+                'hlep': 'help',
+                'porblme': 'problem',
+                'problme': 'problem',
+                'probelm': 'problem',
+                'erorr': 'error',
+                'errer': 'error',
+                'errror': 'error',
+                'pasword': 'password',
+                'passowrd': 'password',
+                'passwrod': 'password',
+                'instal': 'install',
+                'instlal': 'install',
+                'isntall': 'install',
+                'loing': 'login',
+                'logn': 'login',
+                'lgoin': 'login',
+                'screeen': 'screen',
+                'scren': 'screen',
+                'screne': 'screen',
+                'setings': 'settings',
+                'settigns': 'settings',
+                'settngs': 'settings',
+                'conifg': 'config',
+                'cofnig': 'config',
+                'confgi': 'config',
+                'databse': 'database',
+                'datbase': 'database',
+                'dtabase': 'database',
+                'dowload': 'download',
+                'donwload': 'download',
+                'downlaod': 'download',
+                'fiel': 'file',
+                'flei': 'file',
+                'ifle': 'file',
+                'buton': 'button',
+                'butotn': 'button',
+                'buttno': 'button'
+            };
+            
+            return commonMisspellings[word.toLowerCase()] || word;
+        }
+
+        // Calculate edit distance between two words
+        function editDistance(str1, str2) {
+            const len1 = str1.length;
+            const len2 = str2.length;
+            const dp = Array(len1 + 1).fill(null).map(() => Array(len2 + 1).fill(0));
+            
+            for (let i = 0; i <= len1; i++) dp[i][0] = i;
+            for (let j = 0; j <= len2; j++) dp[0][j] = j;
+            
+            for (let i = 1; i <= len1; i++) {
+                for (let j = 1; j <= len2; j++) {
+                    if (str1[i - 1] === str2[j - 1]) {
+                        dp[i][j] = dp[i - 1][j - 1];
+                    } else {
+                        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+                    }
+                }
+            }
+            
+            return dp[len1][len2];
+        }
+
+        // Find similar words in the database with performance optimization
+        function findSimilarWords(word, threshold = 2) {
+            const similarWords = new Set();
+            
+            // Only check first 50 chunks for performance
+            try {
+                const chunks = db.exec("SELECT DISTINCT content FROM chunks LIMIT 50");
+                if (chunks.length > 0) {
+                    chunks[0].values.forEach(row => {
+                        const words = row[0].toLowerCase().match(/\b[a-z]+\b/g) || [];
+                        // Only check first 100 words per chunk for performance
+                        words.slice(0, 100).forEach(dbWord => {
+                            if (Math.abs(word.length - dbWord.length) <= threshold) {
+                                if (editDistance(word.toLowerCase(), dbWord) <= threshold) {
+                                    similarWords.add(dbWord);
+                                }
+                            }
+                        });
+                    });
+                }
+            } catch (e) {
+                console.log('Error finding similar words:', e);
+            }
+            
+            return Array.from(similarWords).slice(0, 10); // Limit results
+        }
+
+        // Enhanced search with spell correction
+        function searchChunks(query, limit = 5) {
+            // First check if we have any data at all
+            const totalChunks = db.exec("SELECT COUNT(*) FROM chunks")[0];
+            if (!totalChunks || totalChunks.values[0][0] === 0) {
+                return []; // No data in database
+            }
+            
+            // Spell-check the query
+            const originalWords = query.toLowerCase().split(/\s+/);
+            const correctedWords = originalWords.map(word => correctSpelling(word));
+            const correctedQuery = correctedWords.join(' ');
+            
+            // Check if we made corrections
+            const hadTypos = originalWords.some((word, i) => word !== correctedWords[i]);
+            
+            // Handle vague queries
+            const vagueQueries = ['tell me anything', 'what do you know', 'help me', 'what can you do', 'tell me something', 'hello', 'hi'];
+            const isVagueQuery = vagueQueries.some(vq => correctedQuery.includes(vq));
+            
+            if (isVagueQuery) {
+                // Return a sample of chunks if query is too vague
+                const chunks = db.exec(`
+                    SELECT c.id, c.content, c.embedding, s.name as source_name
+                    FROM chunks c
+                    JOIN sources s ON c.source_id = s.id
+                    ORDER BY RANDOM()
+                    LIMIT 3
+                `);
+                
+                if (!chunks.length || chunks[0].values.length === 0) {
+                    return []; // No data at all
+                }
+                
+                // Return sample chunks with low similarity to trigger helpful response
+                return chunks[0].values.map(row => ({
+                    id: row[0],
+                    content: row[1],
+                    embedding: row[2],
+                    source: row[3],
+                    similarity: 0.1,
+                    hadTypos: hadTypos,
+                    correctedQuery: correctedQuery
+                }));
+            }
+            
+            // Expand query with common variations and similar words
+            const expandedTerms = [];
+            
+            // Add original and corrected terms
+            expandedTerms.push(...originalWords);
+            expandedTerms.push(...correctedWords);
+            
+            // Add similar words for each term
+            correctedWords.forEach(word => {
+                const similar = findSimilarWords(word, 1); // Find words with edit distance of 1
+                expandedTerms.push(...similar);
+            });
+            
+            // Add common synonyms/variations
+            const synonyms = {
+                'login': ['signin', 'sign-in', 'logon', 'log-on', 'authenticate', 'authentication'],
+                'error': ['problem', 'issue', 'fault', 'failure', 'exception', 'wrong', 'bug'],
+                'password': ['passcode', 'pin', 'credential', 'pwd', 'pass'],
+                'install': ['setup', 'installation', 'configure', 'deploy'],
+                'start': ['begin', 'launch', 'run', 'open', 'startup', 'boot', 'initialize'],
+                'stop': ['end', 'close', 'shutdown', 'exit', 'quit', 'terminate'],
+                'fix': ['solve', 'resolve', 'repair', 'troubleshoot', 'correct', 'debug'],
+                'screen': ['display', 'monitor', 'window', 'interface', 'page', 'view'],
+                'frozen': ['hang', 'hung', 'freeze', 'stuck', 'unresponsive', 'not responding'],
+                'crash': ['crashes', 'crashed', 'crashing', 'fail', 'failed', 'failure']
+            };
+            
+            // Add synonyms for each term
+            correctedWords.forEach(term => {
+                if (synonyms[term]) {
+                    expandedTerms.push(...synonyms[term]);
+                }
+                // Also check if term is a synonym and add the main word
+                for (const [main, syns] of Object.entries(synonyms)) {
+                    if (syns.includes(term)) {
+                        expandedTerms.push(main);
+                    }
+                }
+            });
+            
+            // Remove duplicates
+            const uniqueTerms = [...new Set(expandedTerms)];
+            const expandedQuery = uniqueTerms.join(' ');
+            
+            // Generate embedding with expanded terms
+            const queryEmbedding = generateEmbedding(expandedQuery);
+            
+            // Get all chunks with embeddings
+            const chunks = db.exec(`
+                SELECT c.id, c.content, c.embedding, s.name as source_name
+                FROM chunks c
+                JOIN sources s ON c.source_id = s.id
+            `);
+            
+            if (!chunks.length) return [];
+            
+            // Calculate similarities
+            const results = chunks[0].values.map(row => ({
+                id: row[0],
+                content: row[1],
+                embedding: row[2],
+                source: row[3],
+                similarity: calculateSimilarity(queryEmbedding, row[2]),
+                hadTypos: hadTypos,
+                correctedQuery: correctedQuery
+            }));
+            
+            // Sort by similarity and return top results
+            return results
+                .sort((a, b) => b.similarity - a.similarity)
+                .slice(0, limit)
+                .filter(r => r.similarity > 0);
+        }
+            const queryEmbedding = generateEmbedding(query);
+            
+            // Get all chunks with embeddings
+            const chunks = db.exec(`
+                SELECT c.id, c.content, c.embedding, s.name as source_name
+                FROM chunks c
+                JOIN sources s ON c.source_id = s.id
+            `);
+            
+            if (!chunks.length) return [];
+            
+            // Calculate similarities
+            const results = chunks[0].values.map(row => ({
+                id: row[0],
+                content: row[1],
+                embedding: row[2],
+                source: row[3],
+                similarity: calculateSimilarity(queryEmbedding, row[2])
+            }));
+            
+            // Sort by similarity and return top results
+            return results
+                .sort((a, b) => b.similarity - a.similarity)
+                .slice(0, limit)
+                .filter(r => r.similarity > 0);
+        }
+
+        // Generate response based on context
+        function generateResponse(query, chunks) {
+            if (chunks.length === 0) {
+                return {
+                    response: "I don't have enough information to answer that question. Please add relevant documentation or knowledge to my database.",
+                    sources: []
+                };
+            }
+            
+            const sources = [...new Set(chunks.map(c => c.source))];
+            let response = '';
+            
+            switch (settings.responseMode) {
+                case 'comprehensive':
+                    response = generateComprehensiveResponse(query, chunks);
+                    break;
+                case 'concise':
+                    response = generateConciseResponse(query, chunks);
+                    break;
+                case 'technical':
+                    response = generateTechnicalResponse(query, chunks);
+                    break;
+                case 'simple':
+                    response = generateSimpleResponse(query, chunks);
+                    break;
+            }
+            
+            return { response, sources };
+        }
+
+        // Response generation methods
+        function generateComprehensiveResponse(query, chunks) {
+            const keyPoints = extractKeyPoints(query, chunks);
+            
+            if (keyPoints.length === 0) {
+                return "Based on the available documentation, I couldn't find specific information about your query.";
+            }
+            
+            let response = "Based on the documentation:\n\n";
+            keyPoints.forEach((point, index) => {
+                response += `${index + 1}. ${point}\n\n`;
+            });
+            
+            if (chunks.length > 1) {
+                response += "\nFor more detailed information, please refer to the specific sections in the source documents.";
+            }
+            
+            return response;
+        }
+
+        function generateConciseResponse(query, chunks) {
+            const keyPoint = extractKeyPoints(query, chunks)[0];
+            return keyPoint || "No specific information found for your query.";
+        }
+
+        function generateTechnicalResponse(query, chunks) {
+            let response = "Technical Analysis:\n\n";
+            
+            chunks.slice(0, 3).forEach((chunk, index) => {
+                response += `[${chunk.source}]:\n${chunk.content}\n\n`;
+            });
+            
+            return response;
+        }
+
+        function generateSimpleResponse(query, chunks) {
+            const keyPoint = extractKeyPoints(query, chunks)[0];
+            if (!keyPoint) return "I couldn't find an answer to your question.";
+            
+            return keyPoint.split('. ').slice(0, 2).join('. ') + '.';
+        }
+
+        function extractKeyPoints(query, chunks) {
+            const queryWords = query.toLowerCase().split(/\s+/);
+            const points = [];
+            
+            chunks.forEach(chunk => {
+                const sentences = chunk.content.match(/[^.!?]+[.!?]+/g) || [chunk.content];
+                
+                sentences.forEach(sentence => {
+                    const sentenceLower = sentence.toLowerCase();
+                    const relevance = queryWords.filter(word => 
+                        word.length > 2 && sentenceLower.includes(word)
+                    ).length;
+                    
+                    if (relevance > 0) {
+                        points.push({
+                            text: sentence.trim(),
+                            relevance: relevance
+                        });
+                    }
+                });
+            });
+            
+            return [...new Set(points.sort((a, b) => b.relevance - a.relevance)
+                .map(p => p.text))]
+                .slice(0, 5);
+        }
+
+        // PDF parsing
+        async function parsePDF(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = '';
+            
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                fullText += pageText + '\n';
+            }
+            
+            return fullText;
+        }
+
+        // UI Functions
+        function showAlert(message, type = 'success') {
+            const alertContainer = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alertContainer.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 3000);
+        }
+
+        function updateStats() {
+            try {
+                const sources = db.exec("SELECT COUNT(*) FROM sources")[0]?.values[0][0] || 0;
+                const chunks = db.exec("SELECT COUNT(*) FROM chunks")[0]?.values[0][0] || 0;
+                const conversations = db.exec("SELECT COUNT(*) FROM conversations")[0]?.values[0][0] || 0;
+                
+                document.getElementById('knowledgeSources').textContent = sources;
+                document.getElementById('totalChunks').textContent = chunks;
+                document.getElementById('totalConversations').textContent = conversations;
+                
+                // Calculate database size
+                const dbData = db.export();
+                const dbSizeKB = (dbData.byteLength / 1024).toFixed(2);
+                document.getElementById('dbSize').textContent = dbSizeKB + ' KB';
+                
+                // Get last response time
+                const lastConv = db.exec("SELECT response_time FROM conversations ORDER BY id DESC LIMIT 1")[0];
+                if (lastConv) {
+                    document.getElementById('responseTime').textContent = lastConv.values[0][0] + 'ms';
+                }
+            } catch (error) {
+                console.error('Error updating stats:', error);
+            }
+        }
+
+        function updateKnowledgeList() {
+            try {
+                const list = document.getElementById('knowledgeList');
+                list.innerHTML = '';
+                
+                const sources = db.exec("SELECT name, type, created_at FROM sources ORDER BY created_at DESC");
+                if (!sources.length) return;
+                
+                sources[0].values.forEach(row => {
+                    const [name, type, createdAt] = row;
+                    
+                    // Get chunk count for this source
+                    const sourceId = db.exec("SELECT id FROM sources WHERE name = ?", [name])[0].values[0][0];
+                    const chunkCount = db.exec("SELECT COUNT(*) FROM chunks WHERE source_id = ?", [sourceId])[0].values[0][0];
+                    
+                    const item = document.createElement('div');
+                    item.className = 'knowledge-item';
+                    item.innerHTML = `
+                        <span class="knowledge-item-name" title="${name}">${name}</span>
+                        <div class="knowledge-item-info">
+                            <span class="knowledge-item-size">${chunkCount} chunks</span>
+                            <span class="knowledge-item-type">${type.toUpperCase()}</span>
+                            <button class="delete-btn" onclick="removeKnowledge('${name.replace(/'/g, "\\'")}')">Delete</button>
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Error updating knowledge list:', error);
+            }
+        }
+
+        function addKnowledge() {
+            const topic = document.getElementById('topicInput').value.trim();
+            const content = document.getElementById('contentInput').value.trim();
+            
+            if (!topic || !content) {
+                showAlert('Please enter both topic and content', 'error');
+                return;
+            }
+            
+            try {
+                const chunksAdded = addKnowledgeToDb(topic, content, 'manual');
+                
+                document.getElementById('topicInput').value = '';
+                document.getElementById('contentInput').value = '';
+                
+                showAlert(`Added "${topic}" with ${chunksAdded} chunks to knowledge base!`);
+                updateStats();
+                updateKnowledgeList();
+            } catch (error) {
+                showAlert('Error adding knowledge: ' + error.message, 'error');
+            }
+        }
+
+        async function handleFileUpload(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            
+            const processingIndicator = document.getElementById('processingIndicator');
+            processingIndicator.classList.add('show');
+            
+            for (const file of files) {
+                try {
+                    let content = '';
+                    const fileName = file.name;
+                    const fileType = file.name.split('.').pop().toLowerCase();
+                    
+                    // Handle images
+                    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType)) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            try {
+                                // Store image in database
+                                const keywords = prompt(`Enter keywords for this image (${fileName}):\n(e.g., screenshot, error, diagram, login screen)`) || fileName;
+                                
+                                const stmt = db.prepare("INSERT OR REPLACE INTO images (name, data, type, keywords) VALUES (?, ?, ?, ?)");
+                                stmt.run([fileName, e.target.result, fileType, keywords.toLowerCase()]);
+                                stmt.free();
+                                saveDatabase();
+                                
+                                showAlert(`Image "${fileName}" uploaded successfully!`, 'success');
+                                updateStats();
+                            } catch (error) {
+                                showAlert('Error storing image: ' + error.message, 'error');
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                        continue;
+                    }
+                    
+                    // Handle documents
+                    if (fileType === 'pdf') {
+                        content = await parsePDF(file);
+                    } else if (['txt', 'md'].includes(fileType)) {
+                        content = await file.text();
+                    } else if (fileType === 'json') {
+                        const jsonContent = await file.text();
+                        const data = JSON.parse(jsonContent);
+                        content = JSON.stringify(data, null, 2);
+                    } else if (fileType === 'csv') {
+                        content = await file.text();
+                    }
+                    
+                    if (content) {
+                        const chunksAdded = addKnowledgeToDb(fileName, content, fileType);
+                        showAlert(`Successfully processed ${fileName} with ${chunksAdded} chunks!`, 'success');
+                        updateStats();
+                        updateKnowledgeList();
+                    }
+                    
+                } catch (error) {
+                    showAlert(`Error processing ${file.name}: ${error.message}`, 'error');
+                }
+            }
+            
+            processingIndicator.classList.remove('show');
+            event.target.value = '';
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Add user message to chat
+            const chatMessages = document.getElementById('chatMessages');
+            const userDiv = document.createElement('div');
+            userDiv.className = 'message user-message';
+            userDiv.innerHTML = `<strong>You:</strong> ${message}`;
+            chatMessages.appendChild(userDiv);
+            
+            // Show typing indicator
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message bot-message';
+            typingDiv.innerHTML = '<strong>AI:</strong> <span style="opacity: 0.6">Searching database...</span>';
+            chatMessages.appendChild(typingDiv);
+            
+            const startTime = Date.now();
+            
+            try {
+                // Search for relevant chunks
+                const relevantChunks = searchChunks(message, settings.contextWindow);
+                const { response, sources } = generateResponse(message, relevantChunks);
+                
+                const responseTime = Date.now() - startTime;
+                
+                // Save conversation to database
+                const stmt = db.prepare("INSERT INTO conversations (user_input, bot_response, sources, response_time) VALUES (?, ?, ?, ?)");
+                stmt.run([message, response, JSON.stringify(sources), responseTime]);
+                stmt.free();
+                saveDatabase();
+                
+                // Remove typing indicator and add actual response
+                typingDiv.remove();
+                const botDiv = document.createElement('div');
+                botDiv.className = 'message bot-message';
+                botDiv.innerHTML = `<strong>AI:</strong> ${response.replace(/\n/g, '<br>')}`;
+                
+                // Add source references if available
+                if (sources.length > 0) {
+                    botDiv.innerHTML += `<div class="source-reference">Sources: ${sources.join(', ')}</div>`;
+                }
+                
+                chatMessages.appendChild(botDiv);
+                
+            } catch (error) {
+                typingDiv.remove();
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'message bot-message';
+                errorDiv.innerHTML = `<strong>AI:</strong> Error processing your request: ${error.message}`;
+                chatMessages.appendChild(errorDiv);
+            }
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Clear input and update stats
+            input.value = '';
+            updateStats();
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function changeMode() {
+            const select = document.getElementById('modeSelect');
+            settings.responseMode = select.value;
+            showAlert(`Response mode changed to ${select.options[select.selectedIndex].text}`, 'info');
+        }
+
+        function updateContextWindow(value) {
+            settings.contextWindow = parseInt(value);
+            document.getElementById('contextValue').textContent = value;
+        }
+
+        function removeKnowledge(name) {
+            if (confirm(`Are you sure you want to remove "${name}" from the knowledge base?`)) {
+                try {
+                    db.run("DELETE FROM sources WHERE name = ?", [name]);
+                    saveDatabase();
+                    showAlert(`Removed "${name}" from knowledge base`);
+                    updateStats();
+                    updateKnowledgeList();
+                } catch (error) {
+                    showAlert('Error removing knowledge: ' + error.message, 'error');
+                }
+            }
+        }
+
+        function exportDatabase() {
+            try {
+                const data = db.export();
+                const blob = new Blob([data], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ai_assistant_${new Date().toISOString().split('T')[0]}.sqlite`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showAlert('Database exported successfully!');
+            } catch (error) {
+                showAlert('Error exporting database: ' + error.message, 'error');
+            }
+        }
+
+        function importDatabase() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.sqlite,.db';
+            input.onchange = async (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const data = new Uint8Array(arrayBuffer);
+                    db = new SQL.Database(data);
+                    saveDatabase();
+                    showAlert('Database imported successfully!');
+                    updateStats();
+                    updateKnowledgeList();
+                } catch (error) {
+                    showAlert('Error importing database: ' + error.message, 'error');
+                }
+            };
+            input.click();
+        }
+
+        function optimizeDatabase() {
+            try {
+                db.run("VACUUM");
+                db.run("ANALYZE");
+                saveDatabase();
+                showAlert('Database optimized successfully!');
+                updateStats();
+            } catch (error) {
+                showAlert('Error optimizing database: ' + error.message, 'error');
+            }
+        }
+
+        function clearDatabase() {
+            if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+                try {
+                    db.run("DELETE FROM conversations");
+                    db.run("DELETE FROM chunks");
+                    db.run("DELETE FROM sources");
+                    saveDatabase();
+                    showAlert('Database cleared successfully!');
+                    updateStats();
+                    updateKnowledgeList();
+                } catch (error) {
+                    showAlert('Error clearing database: ' + error.message, 'error');
+                }
+            }
+        }
+
+        // Initialize database when page loads
+        initDatabase();
+
+        // Auto-save and restore functions for mobile
+        function saveToFile() {
+            try {
+                const data = db.export();
+                const blob = new Blob([data], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'chatbot_autosave.sqlite';
+                a.click();
+                URL.revokeObjectURL(url);
+                showAlert('Database saved! Keep this file to restore your data.', 'success');
+            } catch (error) {
+                showAlert('Error saving: ' + error.message, 'error');
+            }
+        }
+
+        function loadFromFile() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.sqlite,.db';
+            input.onchange = async (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const data = new Uint8Array(arrayBuffer);
+                    db = new SQL.Database(data);
+                    saveDatabase();
+                    showAlert('Database loaded successfully!', 'success');
+                    updateStats();
+                    updateKnowledgeList();
+                } catch (error) {
+                    showAlert('Error loading: ' + error.message, 'error');
+                }
+            };
+            input.click();
+        }
+
+        // Try alternative storage methods for mobile
+        async function saveDatabase() {
+            try {
+                const data = db.export();
+                const buffer = Buffer.from(data);
+                const base64 = btoa(String.fromCharCode.apply(null, buffer));
+                
+                // Try multiple storage methods
+                try {
+                    localStorage.setItem('aiAssistantDb', base64);
+                } catch (e) {
+                    console.warn('localStorage failed, trying sessionStorage');
+                    sessionStorage.setItem('aiAssistantDb', base64);
+                }
+                
+                // Also try IndexedDB for better persistence
+                if ('indexedDB' in window) {
+                    const request = indexedDB.open('AIAssistantDB', 1);
+                    request.onsuccess = function(event) {
+                        const idb = event.target.result;
+                        const transaction = idb.transaction(['database'], 'readwrite');
+                        const store = transaction.objectStore('database');
+                        store.put({ id: 1, data: base64 });
+                    };
+                    request.onupgradeneeded = function(event) {
+                        const idb = event.target.result;
+                        if (!idb.objectStoreNames.contains('database')) {
+                            idb.createObjectStore('database', { keyPath: 'id' });
+                        }
+                    };
+                }
+            } catch (error) {
+                console.error('Error saving database:', error);
+            }
+        }
+
+        // Mobile menu toggle
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.toggle('show');
+            overlay.classList.toggle('show');
+            
+            // Prevent body scroll when sidebar is open
+            if (sidebar.classList.contains('show')) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = '';
+            }
+        }
+
+        // PWA Install functionality
+        let deferredPrompt;
+        const installBtn = document.getElementById('installBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'block';
+        });
+
+        function installApp() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        showAlert('App installed successfully!', 'success');
+                    }
+                    deferredPrompt = null;
+                    installBtn.style.display = 'none';
+                });
+            }
+        }
+
+        // Service Worker for offline functionality
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('data:text/javascript,' + encodeURIComponent(`
+                self.addEventListener('install', e => {
+                    self.skipWaiting();
+                });
+                self.addEventListener('activate', e => {
+                    e.waitUntil(clients.claim());
+                });
+                self.addEventListener('fetch', e => {
+                    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+                });
+            `));
+        }
+
+        // Handle file input on mobile
+        document.getElementById('fileUpload').addEventListener('click', function(e) {
+            if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                this.removeAttribute('accept');
+                setTimeout(() => {
+                    this.setAttribute('accept', '.pdf,.txt,.json,.csv,.md');
+                }, 100);
+            }
+        });
+
+        // Prevent zoom on input focus (mobile)
+        document.addEventListener('touchstart', function(e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                e.target.style.fontSize = '16px';
+            }
+        });
+    </script>
+</body>
+</html>
